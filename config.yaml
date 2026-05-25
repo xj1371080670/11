@@ -1,0 +1,71 @@
+# ==============================================================
+# MercadoLibre 卖家爬虫配置
+# 修改关键词、站点、抓取深度都在这里
+# ==============================================================
+
+# 站点：
+#   MLC = 智利 (https://listado.mercadolibre.cl)
+#   MLM = 墨西哥
+#   MLB = 巴西 (葡语关键词)
+#   MLA = 阿根廷
+#   MCO = 哥伦比亚
+site: MLC
+
+# 每个关键词最多翻多少页（每页约 48 个商品）
+max_pages_per_keyword: 5
+
+# 请求间隔（秒），随机取 [min, max]，太小会被封
+delay_min: 2.0
+delay_max: 4.0
+
+# 请求超时（秒）
+timeout: 30
+
+# 是否对每个卖家访问主页/店铺页拿详细信息
+# 关闭可显著加速，但只会有从列表页能拿到的数据
+fetch_seller_detail: true
+
+# 输出目录
+output_dir: output
+
+# 是否保存原始 HTML（便于排错，不需要可关掉省空间）
+save_raw_html: true
+
+# ==============================================================
+# 关键词列表 - 西语（智利/墨西哥/阿根廷/哥伦比亚都用西语）
+# 已经按爱骑仕主营产品（摩托/滑雪/裁判/教练对讲）预置
+# ==============================================================
+keywords:
+  # 摩托对讲机
+  - intercomunicador casco moto
+  - intercomunicador moto bluetooth
+  - auriculares casco moto bluetooth
+  - manos libres casco moto
+  - bluetooth casco moto
+  - comunicador casco moto
+
+  # 滑雪对讲
+  - intercomunicador esqui
+  - intercomunicador casco esqui
+  - bluetooth casco ski
+
+  # 裁判 / 教练对讲
+  - intercomunicador arbitro
+  - auriculares arbitro
+  - intercomunicador entrenador
+  - headset entrenador
+
+  # 通用 / 长尾
+  - walkie talkie casco
+  - sistema comunicacion casco
+  - intercom moto
+
+# ==============================================================
+# 葡语关键词 - 切换到 MLB 巴西时启用，注释掉上面的 keywords 块
+# ==============================================================
+# keywords:
+#   - intercomunicador capacete moto
+#   - fone capacete bluetooth
+#   - bluetooth capacete moto
+#   - intercomunicador esqui
+#   - intercomunicador arbitro
