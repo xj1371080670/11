@@ -149,6 +149,70 @@ def make_session(timeout: int) -> requests.Session:
     return s
 
 
+# 国内常见 VPN 客户端的本地代理端口
+COMMON_PROXY_PORTS = [
+    ("Clash for Windows / ClashX", 7890),
+    ("Clash 备用", 7891),
+    ("v2rayN", 10809),
+    ("v2rayN SOCKS", 10808),
+    ("Shadowsocks", 1087),
+    ("Shadowsocks SOCKS", 1080),
+    ("Surge", 6152),
+    ("通用 8080", 8080),
+    ("通用 8888", 8888),
+]
+
+
+def detect_proxy() -> Optional[str]:
+    """探测本机正在运行的代理端口, 用一个能确定走代理的请求验证"""
+    print("[PROXY] 自动探测本机代理端口...")
+    test_url = "https://api.ipify.org?format=json"
+    for name, port in COMMON_PROXY_PORTS:
+        proxy = f"http://127.0.0.1:{port}"
+        try:
+            r = requests.get(
+                test_url,
+                proxies={"http": proxy, "https": proxy},
+                timeout=4,
+            )
+            if r.status_code == 200:
+                ip = r.json().get("ip", "?")
+                print(f"  ✅ 端口 {port} ({name}) 可用, 出口IP: {ip}")
+                return proxy
+        except Exception:
+            pass
+    print("  ❌ 没找到能用的代理端口")
+    return None
+
+
+def verify_proxy_works_for_ml(proxy: str, site: str, timeout: int = 15) -> bool:
+    """额外确认代理出口IP能访问 MercadoLibre (没被地理墙拦)"""
+    domain = SITE_DOMAINS[site]
+    test_url = f"https://{domain}/celular"  # 一个一定有结果的搜索词
+    try:
+        r = requests.get(
+            test_url,
+            headers={
+                "User-Agent": random.choice(USER_AGENTS),
+                "Accept-Language": SITE_LANG[site],
+            },
+            proxies={"http": proxy, "https": proxy},
+            timeout=timeout,
+            allow_redirects=True,
+        )
+        if "/gz/account-verification" in r.url:
+            print(f"  ❌ 代理 IP 仍被 MercadoLibre 拦截, 切个海外节点重试")
+            return False
+        if r.status_code == 200 and "mercadolibre" in r.url:
+            print(f"  ✅ 代理可访问 MercadoLibre {site}")
+            return True
+        print(f"  ⚠️  返回 {r.status_code} {r.url}")
+        return False
+    except Exception as e:
+        print(f"  ❌ {e}")
+        return False
+
+
 def polite_get(
     session: requests.Session,
     url: str,
@@ -725,6 +789,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--config", default="config.yaml", help="配置文件路径")
     p.add_argument("--keyword", help="只抓单个关键词 (覆盖 config)")
     p.add_argument("--max-pages", type=int, help="每词最多翻多少页 (覆盖 config)")
+    p.add_argument("--auto-proxy", action="store_true",
+                   help="自动探测本机代理端口 (Clash/v2rayN等)")
+    p.add_argument("--proxy", help="手动指定代理, 如 http://127.0.0.1:7890")
     return p.parse_args()
 
 
@@ -738,10 +805,34 @@ def main():
         cfg = yaml.safe_load(f)
 
     print(f"[CFG] site={cfg['site']}, 关键词数={len(cfg.get('keywords', []))}")
-    if os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY"):
-        print(f"[PROXY] HTTPS_PROXY={os.environ.get('HTTPS_PROXY')}")
+
+    # 代理处理: --proxy > --auto-proxy > 已有环境变量 > 没代理(警告)
+    proxy_url: Optional[str] = None
+    if args.proxy:
+        proxy_url = args.proxy
+        print(f"[PROXY] 手动指定: {proxy_url}")
+    elif args.auto_proxy:
+        proxy_url = detect_proxy()
+        if not proxy_url:
+            print("[FATAL] 自动探测失败。检查你的 VPN/Clash/v2rayN 是否已开启,")
+            print("       或手动用 --proxy http://127.0.0.1:端口号 指定")
+            sys.exit(1)
+    elif os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY"):
+        proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+        print(f"[PROXY] 沿用环境变量: {proxy_url}")
     else:
-        print("[PROXY] 未设置代理 - 如果你不是直接通过 VPN 上网, 可能会被拦截")
+        print("[PROXY] ⚠️ 未设置代理。如果你在中国大陆, MercadoLibre 一定会拦截。")
+        print("       建议加 --auto-proxy 让脚本自动探测, 或 --proxy http://...")
+
+    # 把代理塞进环境变量, 这样所有 requests 都自动走它
+    if proxy_url:
+        os.environ["HTTPS_PROXY"] = proxy_url
+        os.environ["HTTP_PROXY"] = proxy_url
+        # 验证代理 IP 真的能打开 MercadoLibre
+        if not verify_proxy_works_for_ml(proxy_url, cfg["site"]):
+            print("\n[FATAL] 代理可联网但 MercadoLibre 拦截了你的出口 IP。")
+            print("        VPN 节点切到 智利/墨西哥/美国/巴西, 然后重跑。")
+            sys.exit(1)
 
     listings, sellers = crawl(cfg, args)
 

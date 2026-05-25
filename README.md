@@ -47,18 +47,28 @@ pip install -r requirements.txt
 
 ### 2. 跑爬虫
 
+**🚀 最快启动（自动探测代理端口）：**
+
 ```bash
-# 直接跑（开了系统级 VPN 时）
+python mlc_scraper.py --auto-proxy --max-pages 1
+```
+
+脚本会自动探测你电脑上 Clash / v2rayN / Shadowsocks 等常见 VPN 软件的本地端口，找到就直接用，并会先测试该 IP 是否真的能访问 MercadoLibre。这是首次跑通的最快方式。
+
+**其他用法：**
+
+```bash
+# 手动指定代理端口（如果自动探测失败）
+python mlc_scraper.py --proxy http://127.0.0.1:7890
+
+# 已经设好系统级/全局 VPN
 python mlc_scraper.py
 
-# 或者指定代理
-HTTPS_PROXY=http://user:pass@proxy.example.com:8080 python mlc_scraper.py
-
-# 只跑前 1 页测试
-python mlc_scraper.py --max-pages 1
-
 # 只跑某一个关键词测试
-python mlc_scraper.py --keyword "intercomunicador casco moto"
+python mlc_scraper.py --auto-proxy --keyword "intercomunicador casco moto"
+
+# 全量跑（生产）
+python mlc_scraper.py --auto-proxy
 ```
 
 ### 3. 看结果
